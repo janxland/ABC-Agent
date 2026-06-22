@@ -503,6 +503,10 @@ input[type="range"] {
   padding: 12px 24px 18px;
 }
 
+.composer.drag-active {
+  background: #eef8f3;
+}
+
 .composer-tools {
   display: flex;
   flex-wrap: wrap;
@@ -517,6 +521,87 @@ input[type="range"] {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 112px;
   gap: 10px;
+}
+
+.file-input {
+  display: none;
+}
+
+.drop-zone {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  border: 1px dashed #aab8bd;
+  border-radius: 8px;
+  background: #fff;
+  color: #44535a;
+  padding: 9px 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.drag-active .drop-zone {
+  border-color: #0b5d48;
+  background: #e0f5ea;
+  color: #0b5d48;
+}
+
+.drop-zone span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+.attachment-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.attachment {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #dbe1e3;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 10px;
+}
+
+.attachment strong,
+.attachment span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment strong {
+  font-size: 13px;
+}
+
+.attachment span {
+  color: #66757b;
+  font-size: 12px;
+}
+
+.attachment button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #eef2f4;
+  color: #48565c;
+  cursor: pointer;
 }
 
 .composer textarea {
@@ -681,8 +766,27 @@ pre {
 }
 
 @media (max-width: 860px) {
+  body {
+    overflow-x: hidden;
+  }
+
   .app-shell {
     grid-template-columns: 1fr;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .left-rail,
+  .center-stage,
+  .right-inspector,
+  .topbar,
+  .command-deck,
+  .conversation,
+  .composer {
+    width: 100%;
+    min-width: 0;
+    max-width: 100vw;
   }
 
   .left-rail {
@@ -704,6 +808,22 @@ pre {
 
   .command-deck {
     grid-template-columns: 1fr;
+  }
+
+  .command-deck button,
+  .drop-zone,
+  .composer-tools,
+  .composer-row,
+  .empty-state,
+  .attachment {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .empty-state p,
+  .drop-zone span {
+    overflow-wrap: anywhere;
+    white-space: normal;
   }
 }
 

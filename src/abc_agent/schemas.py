@@ -43,3 +43,15 @@ class SkillInfo(BaseModel):
     description: str
     path: str
     tools: list[str] = Field(default_factory=list)
+
+
+class TextUploadRequest(BaseModel):
+    content: str = Field(..., min_length=1)
+    filename: str = "pasted.txt"
+
+
+class UploadResponse(BaseModel):
+    filename: str
+    path: str
+    size_bytes: int
+    preview: str

@@ -39,3 +39,10 @@ export interface ConversationTurn {
   trace?: AgentTraceStep[];
   error?: string;
 }
+
+export interface UploadResponse {
+  filename: string;
+  path: string;
+  size_bytes: number;
+  preview: string;
+}

@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatResponse, SkillInfo } from "./types";
+import type { ChatMessage, ChatResponse, SkillInfo, UploadResponse } from "./types";
 
 export async function fetchSkills(): Promise<SkillInfo[]> {
   const response = await fetch("/api/skills");
@@ -26,6 +26,36 @@ export async function sendMessage(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, history, max_steps: maxSteps })
+  });
+
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
+
+  return response.json();
+}
+
+export async function uploadFile(file: File): Promise<UploadResponse> {
+  const form = new FormData();
+  form.append("file", file);
+
+  const response = await fetch("/api/files/upload", {
+    method: "POST",
+    body: form
+  });
+
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
+
+  return response.json();
+}
+
+export async function uploadText(content: string, filename: string): Promise<UploadResponse> {
+  const response = await fetch("/api/files/text", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, filename })
   });
 
   if (!response.ok) {

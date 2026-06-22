@@ -9,6 +9,7 @@ import {
   Code2,
   DatabaseZap,
   FileJson,
+  FileText,
   Gauge,
   Hammer,
   History,
@@ -22,12 +23,20 @@ import {
   ShieldCheck,
   Sparkles,
   TerminalSquare,
+  Upload,
+  X,
   UserRound,
   Workflow
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { checkHealth, fetchSkills, sendMessage } from "./api";
-import type { AgentTraceStep, ChatMessage, ConversationTurn, SkillInfo } from "./types";
+import { ClipboardEvent, DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { checkHealth, fetchSkills, sendMessage, uploadFile, uploadText } from "./api";
+import type {
+  AgentTraceStep,
+  ChatMessage,
+  ConversationTurn,
+  SkillInfo,
+  UploadResponse
+} from "./types";
 
 const starterPrompts = [
   "列出当前可用 skills，并说明每个 skill 能做什么",
@@ -48,6 +57,19 @@ function lastTrace(turns: ConversationTurn[]): AgentTraceStep[] {
   return [];
 }
 
+function formatBytes(size: number) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function guessPasteFilename(content: string) {
+  const trimmed = content.trimStart();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) return "pasted-score.json";
+  if (/^X:\s*\d+/m.test(content) || /^K:/m.test(content)) return "pasted-score.abc";
+  return "pasted-content.txt";
+}
+
 export function App() {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [online, setOnline] = useState(false);
@@ -55,6 +77,10 @@ export function App() {
   const [input, setInput] = useState("");
   const [maxSteps, setMaxSteps] = useState(6);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [attachments, setAttachments] = useState<UploadResponse[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [skillError, setSkillError] = useState("");
   const [selectedTraceIndex, setSelectedTraceIndex] = useState(0);
 
@@ -95,11 +121,12 @@ export function App() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    const message = input.trim();
-    if (!message || loading) return;
+    const message = buildMessage(input.trim());
+    if (!message || loading || uploading) return;
 
     const id = crypto.randomUUID();
     setInput("");
+    setAttachments([]);
     setLoading(true);
     setTurns((current) => [...current, { id, user: message }]);
 
@@ -126,6 +153,84 @@ export function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function buildMessage(text: string) {
+    const fileContext = attachments
+      .map(
+        (file) =>
+          `- ${file.filename}: ${file.path} (${formatBytes(file.size_bytes)})`
+      )
+      .join("\n");
+
+    if (!fileContext) return text;
+
+    return [
+      text || "请处理这些已上传文件。",
+      "",
+      "已上传文件路径如下，请优先把 path 作为 tool 的 source 参数，不要要求我粘贴全文：",
+      fileContext
+    ].join("\n");
+  }
+
+  async function handleFiles(files: FileList | File[]) {
+    const items = Array.from(files).filter((file) => file.size > 0);
+    if (items.length === 0) return;
+
+    setUploading(true);
+    try {
+      const uploaded = await Promise.all(items.map((file) => uploadFile(file)));
+      setAttachments((current) => [...current, ...uploaded]);
+    } catch (error) {
+      setSkillError(error instanceof Error ? error.message : "文件上传失败");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handlePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const files = event.clipboardData.files;
+    if (files.length > 0) {
+      event.preventDefault();
+      await handleFiles(files);
+      return;
+    }
+
+    const text = event.clipboardData.getData("text");
+    if (text.length < 1600) return;
+
+    event.preventDefault();
+    setUploading(true);
+    try {
+      const uploaded = await uploadText(text, guessPasteFilename(text));
+      setAttachments((current) => [...current, uploaded]);
+      setInput((current) =>
+        current.trim()
+          ? current
+          : "请读取刚粘贴保存的文件，并根据内容选择合适的 skill/tool 处理。"
+      );
+    } catch (error) {
+      setSkillError(error instanceof Error ? error.message : "粘贴内容保存失败");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function handleDragOver(event: DragEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setDragActive(true);
+  }
+
+  function handleDragLeave(event: DragEvent<HTMLFormElement>) {
+    if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+      setDragActive(false);
+    }
+  }
+
+  async function handleDrop(event: DragEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setDragActive(false);
+    await handleFiles(event.dataTransfer.files);
   }
 
   return (
@@ -323,7 +428,13 @@ export function App() {
           )}
         </section>
 
-        <form className="composer" onSubmit={handleSubmit}>
+        <form
+          className={dragActive ? "composer drag-active" : "composer"}
+          onSubmit={handleSubmit}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <div className="composer-tools">
             <span>
               <ShieldCheck size={15} />
@@ -333,16 +444,66 @@ export function App() {
               <Layers3 size={15} />
               Skill-aware ReAct
             </span>
+            <span>
+              <Upload size={15} />
+              File-first tools
+            </span>
           </div>
+          <input
+            ref={fileInputRef}
+            className="file-input"
+            type="file"
+            multiple
+            accept=".json,.txt,.abc,.mid,.midi"
+            onChange={(event) => {
+              if (event.target.files) {
+                handleFiles(event.target.files);
+              }
+              event.currentTarget.value = "";
+            }}
+          />
+          <div className="drop-zone" onClick={() => fileInputRef.current?.click()}>
+            <Upload size={18} />
+            <span>拖入 ABC/JSON 文件，或点击选择文件；也可以直接复制文件或粘贴大段文本</span>
+            {uploading && <Loader2 className="spin-icon" size={16} />}
+          </div>
+          {attachments.length > 0 && (
+            <div className="attachment-list">
+              {attachments.map((file) => (
+                <div className="attachment" key={file.path}>
+                  <FileText size={16} />
+                  <div>
+                    <strong>{file.filename}</strong>
+                    <span>{formatBytes(file.size_bytes)} · {file.path}</span>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={`移除 ${file.filename}`}
+                    onClick={() =>
+                      setAttachments((current) =>
+                        current.filter((item) => item.path !== file.path)
+                      )
+                    }
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="composer-row">
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
+              onPaste={handlePaste}
               placeholder="输入任务，例如：读取 sky-music-tools skill，并告诉我如何转 ABC"
               rows={3}
             />
-            <button type="submit" disabled={loading || input.trim().length === 0}>
-              {loading ? <Loader2 size={18} /> : <Send size={18} />}
+            <button
+              type="submit"
+              disabled={loading || uploading || buildMessage(input.trim()).length === 0}
+            >
+              {loading || uploading ? <Loader2 size={18} /> : <Send size={18} />}
               <span>Run</span>
             </button>
           </div>
