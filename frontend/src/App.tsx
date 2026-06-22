@@ -1,25 +1,52 @@
 import {
+  Activity,
   Bot,
+  Boxes,
   BrainCircuit,
   CheckCircle2,
   CircleAlert,
+  Clock3,
+  Code2,
+  DatabaseZap,
+  FileJson,
+  Gauge,
   Hammer,
+  History,
+  Layers3,
   Loader2,
+  MessageSquareText,
+  PanelRightOpen,
   Play,
   RefreshCcw,
   Send,
+  ShieldCheck,
   Sparkles,
-  UserRound
+  TerminalSquare,
+  UserRound,
+  Workflow
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { checkHealth, fetchSkills, sendMessage } from "./api";
-import type { ChatMessage, ConversationTurn, SkillInfo } from "./types";
+import type { AgentTraceStep, ChatMessage, ConversationTurn, SkillInfo } from "./types";
 
 const starterPrompts = [
   "列出当前可用 skills，并说明每个 skill 能做什么",
   "用 ReAct 解释一下你会如何处理一个 Sky 谱转 ABC 的任务",
-  "你好，介绍一下 ABC Agent 当前具备的能力"
+  "把当前 Agent 的工具调用流程用步骤说明给我"
 ];
+
+function formatObservation(value: unknown) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  return JSON.stringify(value, null, 2);
+}
+
+function lastTrace(turns: ConversationTurn[]): AgentTraceStep[] {
+  for (let index = turns.length - 1; index >= 0; index -= 1) {
+    if (turns[index].trace?.length) return turns[index].trace ?? [];
+  }
+  return [];
+}
 
 export function App() {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
@@ -29,6 +56,7 @@ export function App() {
   const [maxSteps, setMaxSteps] = useState(6);
   const [loading, setLoading] = useState(false);
   const [skillError, setSkillError] = useState("");
+  const [selectedTraceIndex, setSelectedTraceIndex] = useState(0);
 
   const history = useMemo<ChatMessage[]>(() => {
     return turns.flatMap((turn) => {
@@ -39,6 +67,11 @@ export function App() {
       return messages;
     });
   }, [turns]);
+
+  const toolCount = skills.reduce((total, skill) => total + skill.tools.length, 0);
+  const trace = lastTrace(turns);
+  const selectedTrace = trace[selectedTraceIndex] ?? trace[0];
+  const completedTasks = turns.filter((turn) => turn.assistant).length;
 
   async function refreshRuntime() {
     const isOnline = await checkHealth();
@@ -55,6 +88,10 @@ export function App() {
   useEffect(() => {
     refreshRuntime();
   }, []);
+
+  useEffect(() => {
+    setSelectedTraceIndex(0);
+  }, [trace.length]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -91,36 +128,61 @@ export function App() {
     }
   }
 
-  function usePrompt(prompt: string) {
-    setInput(prompt);
-  }
-
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <aside className="left-rail">
         <div className="brand">
           <div className="brand-mark">
             <BrainCircuit size={24} />
           </div>
           <div>
             <h1>ABC Agent</h1>
-            <p>ReAct + Skill Tools</p>
+            <p>ReAct orchestration studio</p>
           </div>
         </div>
 
-        <section className="runtime">
-          <div className="section-title">
-            <span>运行状态</span>
-            <button className="icon-button" onClick={refreshRuntime} aria-label="刷新">
+        <nav className="nav-stack" aria-label="Agent sections">
+          <button className="nav-item active">
+            <MessageSquareText size={18} />
+            <span>Console</span>
+          </button>
+          <button className="nav-item">
+            <Workflow size={18} />
+            <span>Runs</span>
+          </button>
+          <button className="nav-item">
+            <Boxes size={18} />
+            <span>Skills</span>
+          </button>
+          <button className="nav-item">
+            <DatabaseZap size={18} />
+            <span>Artifacts</span>
+          </button>
+        </nav>
+
+        <section className="panel runtime-panel">
+          <div className="panel-title">
+            <span>Runtime</span>
+            <button className="icon-button" onClick={refreshRuntime} aria-label="刷新运行状态">
               <RefreshCcw size={16} />
             </button>
           </div>
           <div className={online ? "status online" : "status offline"}>
             {online ? <CheckCircle2 size={16} /> : <CircleAlert size={16} />}
-            <span>{online ? "Backend online" : "Backend offline"}</span>
+            <span>{online ? "API connected" : "API offline"}</span>
+          </div>
+          <div className="runtime-grid">
+            <div>
+              <strong>{skills.length}</strong>
+              <span>Skills</span>
+            </div>
+            <div>
+              <strong>{toolCount}</strong>
+              <span>Tools</span>
+            </div>
           </div>
           <label className="range-label">
-            <span>ReAct steps</span>
+            <span>Max ReAct steps</span>
             <strong>{maxSteps}</strong>
           </label>
           <input
@@ -132,9 +194,9 @@ export function App() {
           />
         </section>
 
-        <section className="skills-panel">
-          <div className="section-title">
-            <span>Skills</span>
+        <section className="panel skills-panel">
+          <div className="panel-title">
+            <span>Loaded skills</span>
             <span className="count">{skills.length}</span>
           </div>
           {skillError && <div className="error-inline">{skillError}</div>}
@@ -159,17 +221,30 @@ export function App() {
         </section>
       </aside>
 
-      <main className="workspace">
+      <main className="center-stage">
         <header className="topbar">
           <div>
+            <div className="eyebrow">
+              <Activity size={15} />
+              <span>Live agent workspace</span>
+            </div>
             <h2>Agent Console</h2>
-            <p>直接对话，观察 ReAct 推理、工具选择和 skill 调用结果。</p>
+          </div>
+          <div className="top-actions">
+            <div className="metric-chip">
+              <Clock3 size={15} />
+              <span>{completedTasks} completed</span>
+            </div>
+            <div className="metric-chip">
+              <Gauge size={15} />
+              <span>{trace.length || 0} trace steps</span>
+            </div>
           </div>
         </header>
 
-        <section className="prompt-strip">
+        <section className="command-deck">
           {starterPrompts.map((prompt) => (
-            <button key={prompt} onClick={() => usePrompt(prompt)}>
+            <button key={prompt} onClick={() => setInput(prompt)}>
               <Play size={15} />
               <span>{prompt}</span>
             </button>
@@ -179,62 +254,61 @@ export function App() {
         <section className="conversation">
           {turns.length === 0 && (
             <div className="empty-state">
-              <Bot size={42} />
-              <h3>开始一次 ReAct 对话</h3>
-              <p>Agent 会先判断是否需要 skill，再调用工具，最后给出答案。</p>
+              <div className="empty-mark">
+                <Bot size={38} />
+              </div>
+              <h3>启动一次可观察的 Agent Run</h3>
+              <p>每次对话都会保留 ReAct 决策、工具调用和 observation，方便调试大型 Agent 行为。</p>
             </div>
           )}
 
           {turns.map((turn) => (
             <article className="turn" key={turn.id}>
               <div className="message user-message">
-                <UserRound size={18} />
-                <p>{turn.user}</p>
+                <div className="avatar user-avatar">
+                  <UserRound size={17} />
+                </div>
+                <div>
+                  <span className="message-label">User</span>
+                  <p>{turn.user}</p>
+                </div>
               </div>
 
               {turn.error && (
                 <div className="message error-message">
-                  <CircleAlert size={18} />
-                  <p>{turn.error}</p>
+                  <div className="avatar error-avatar">
+                    <CircleAlert size={17} />
+                  </div>
+                  <div>
+                    <span className="message-label">Error</span>
+                    <p>{turn.error}</p>
+                  </div>
                 </div>
               )}
 
               {turn.assistant && (
                 <div className="message assistant-message">
-                  <Bot size={18} />
-                  <p>{turn.assistant}</p>
+                  <div className="avatar assistant-avatar">
+                    <Bot size={17} />
+                  </div>
+                  <div>
+                    <span className="message-label">ABC Agent</span>
+                    <p>{turn.assistant}</p>
+                  </div>
                 </div>
               )}
 
               {turn.trace && turn.trace.length > 0 && (
-                <div className="trace-list">
+                <div className="run-summary">
                   {turn.trace.map((step) => (
-                    <details key={step.step} open={step.action === "tool"}>
-                      <summary>
-                        <span>Step {step.step}</span>
-                        <strong>{step.action === "tool" ? "Tool" : "Final"}</strong>
-                      </summary>
-                      {step.thought && <p className="thought">{step.thought}</p>}
-                      {step.tool_call && (
-                        <div className="tool-call">
-                          <div className="tool-name">
-                            <Hammer size={15} />
-                            <span>{step.tool_call.name}</span>
-                          </div>
-                          <pre>
-                            {JSON.stringify(
-                              {
-                                arguments: step.tool_call.arguments,
-                                observation: step.tool_call.observation
-                              },
-                              null,
-                              2
-                            )}
-                          </pre>
-                        </div>
-                      )}
-                      {step.final && <p className="final-text">{step.final}</p>}
-                    </details>
+                    <button
+                      key={step.step}
+                      className={step.action === "tool" ? "trace-chip tool" : "trace-chip final"}
+                      onClick={() => setSelectedTraceIndex(step.step - 1)}
+                    >
+                      {step.action === "tool" ? <Hammer size={14} /> : <CheckCircle2 size={14} />}
+                      <span>Step {step.step}</span>
+                    </button>
                   ))}
                 </div>
               )}
@@ -244,24 +318,97 @@ export function App() {
           {loading && (
             <div className="loading-line">
               <Loader2 size={18} />
-              <span>Agent 正在推理...</span>
+              <span>Agent 正在规划、调用工具并整理答案...</span>
             </div>
           )}
         </section>
 
         <form className="composer" onSubmit={handleSubmit}>
-          <textarea
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="输入任务，例如：读取 sky-music-tools skill，并告诉我如何转 ABC"
-            rows={3}
-          />
-          <button type="submit" disabled={loading || input.trim().length === 0}>
-            {loading ? <Loader2 size={18} /> : <Send size={18} />}
-            <span>发送</span>
-          </button>
+          <div className="composer-tools">
+            <span>
+              <ShieldCheck size={15} />
+              Local secrets protected
+            </span>
+            <span>
+              <Layers3 size={15} />
+              Skill-aware ReAct
+            </span>
+          </div>
+          <div className="composer-row">
+            <textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder="输入任务，例如：读取 sky-music-tools skill，并告诉我如何转 ABC"
+              rows={3}
+            />
+            <button type="submit" disabled={loading || input.trim().length === 0}>
+              {loading ? <Loader2 size={18} /> : <Send size={18} />}
+              <span>Run</span>
+            </button>
+          </div>
         </form>
       </main>
+
+      <aside className="right-inspector">
+        <section className="panel inspector-panel">
+          <div className="panel-title">
+            <span>Run inspector</span>
+            <PanelRightOpen size={16} />
+          </div>
+          {selectedTrace ? (
+            <div className="inspector-content">
+              <div className="inspector-step">
+                <div className="step-index">{selectedTrace.step}</div>
+                <div>
+                  <strong>{selectedTrace.action === "tool" ? "Tool action" : "Final answer"}</strong>
+                  <p>{selectedTrace.thought || "No thought recorded."}</p>
+                </div>
+              </div>
+
+              {selectedTrace.tool_call && (
+                <>
+                  <div className="tool-card">
+                    <div className="tool-card-head">
+                      <TerminalSquare size={16} />
+                      <strong>{selectedTrace.tool_call.name}</strong>
+                    </div>
+                    <span className={selectedTrace.tool_call.ok ? "ok-badge" : "fail-badge"}>
+                      {selectedTrace.tool_call.ok ? "completed" : "failed"}
+                    </span>
+                  </div>
+                  <div className="code-block">
+                    <div className="code-title">
+                      <FileJson size={15} />
+                      <span>Arguments</span>
+                    </div>
+                    <pre>{JSON.stringify(selectedTrace.tool_call.arguments, null, 2)}</pre>
+                  </div>
+                  <div className="code-block">
+                    <div className="code-title">
+                      <Code2 size={15} />
+                      <span>Observation</span>
+                    </div>
+                    <pre>{formatObservation(selectedTrace.tool_call.observation)}</pre>
+                  </div>
+                </>
+              )}
+
+              {selectedTrace.final && (
+                <div className="final-card">
+                  <CheckCircle2 size={18} />
+                  <p>{selectedTrace.final}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="inspector-empty">
+              <History size={34} />
+              <h3>No run selected</h3>
+              <p>发送消息后，这里会显示 ReAct trace、工具参数和 observation。</p>
+            </div>
+          )}
+        </section>
+      </aside>
     </div>
   );
 }
