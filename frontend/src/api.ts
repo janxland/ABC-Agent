@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatResponse, SkillInfo, UploadResponse } from "./types";
+import type { AgentStreamEvent, ChatMessage, ChatResponse, SkillInfo, UploadResponse } from "./types";
 
 export async function fetchSkills(): Promise<SkillInfo[]> {
   const response = await fetch("/api/skills");
@@ -33,6 +33,55 @@ export async function sendMessage(
   }
 
   return response.json();
+}
+
+export async function streamMessage(
+  message: string,
+  history: ChatMessage[],
+  maxSteps: number,
+  handlers: {
+    onContent: (content: string) => void;
+    onEvent: (event: AgentStreamEvent) => void;
+  }
+): Promise<void> {
+  const response = await fetch("/api/chat/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history, max_steps: maxSteps })
+  });
+
+  if (!response.ok || !response.body) {
+    throw new Error(await readError(response));
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const line = part
+        .split("\n")
+        .find((item) => item.startsWith("data:"));
+      if (!line) continue;
+      const data = line.slice(5).trim();
+      if (data === "[DONE]") return;
+      const payload = JSON.parse(data);
+      if (payload.abc_agent_event) {
+        handlers.onEvent(payload.abc_agent_event);
+      }
+      const delta = payload.choices?.[0]?.delta?.content;
+      if (delta) {
+        handlers.onContent(delta);
+      }
+    }
+  }
 }
 
 export async function uploadFile(file: File): Promise<UploadResponse> {

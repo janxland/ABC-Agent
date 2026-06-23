@@ -148,14 +148,19 @@ class ToolRegistry:
         abc_path.write_text(abc_text, encoding="utf-8")
         renderer.render_abcjs_html(abc_text, str(html_path), title=score.title)
 
+        artifacts = [
+            {"kind": "abc", "label": "ABC notation", "path": str(abc_path)},
+            {"kind": "html", "label": "abcjs sheet", "path": str(html_path)},
+        ]
         result: dict[str, Any] = {
             "title": score.title,
             "bpm": score.bpm,
             "key": score.key,
             "duration_ms": round(score.duration_ms(), 2),
-            "abc": abc_text,
+            "abc_preview": abc_text[:1200],
             "abc_path": str(abc_path),
             "html_path": str(html_path),
+            "artifacts": artifacts,
         }
 
         if make_midi:
@@ -164,6 +169,7 @@ class ToolRegistry:
                 midi_path = output_dir / "score.mid"
                 midi_writer.to_midi(score, str(midi_path), instrument=instrument, add_expression=True)
                 result["midi_path"] = str(midi_path)
+                artifacts.append({"kind": "midi", "label": "MIDI file", "path": str(midi_path)})
             except Exception as exc:
                 result["midi_error"] = str(exc)
 

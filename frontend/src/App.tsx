@@ -29,8 +29,18 @@ import {
   Workflow
 } from "lucide-react";
 import { ClipboardEvent, DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { checkHealth, fetchSkills, sendMessage, uploadFile, uploadText } from "./api";
+import { checkHealth, fetchSkills, sendMessage, streamMessage, uploadFile, uploadText } from "./api";
+import {
+  ArtifactCards,
+  FileReferenceCards,
+  RunTimeline,
+  TodoCards,
+  ToolCards,
+  extractArtifacts,
+  formatBytes
+} from "./components/AgentCards";
 import type {
+  AgentStreamEvent,
   AgentTraceStep,
   ChatMessage,
   ConversationTurn,
@@ -55,12 +65,6 @@ function lastTrace(turns: ConversationTurn[]): AgentTraceStep[] {
     if (turns[index].trace?.length) return turns[index].trace ?? [];
   }
   return [];
-}
-
-function formatBytes(size: number) {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function guessPasteFilename(content: string) {
@@ -128,28 +132,64 @@ export function App() {
     setInput("");
     setAttachments([]);
     setLoading(true);
-    setTurns((current) => [...current, { id, user: message }]);
+    setTurns((current) => [...current, { id, user: message, assistant: "", events: [], streaming: true }]);
 
     try {
-      const response = await sendMessage(message, history, maxSteps);
+      await streamMessage(message, history, maxSteps, {
+        onContent: (content) => {
+          setTurns((current) =>
+            current.map((turn) =>
+              turn.id === id
+                ? { ...turn, assistant: `${turn.assistant ?? ""}${content}` }
+                : turn
+            )
+          );
+        },
+        onEvent: (streamEvent: AgentStreamEvent) => {
+          setTurns((current) =>
+            current.map((turn) => {
+              if (turn.id !== id) return turn;
+              const nextEvents = [...(turn.events ?? []), streamEvent];
+              const trace =
+                streamEvent.type === "run.completed" && Array.isArray(streamEvent.trace)
+                  ? (streamEvent.trace as AgentTraceStep[])
+                  : turn.trace;
+              return { ...turn, events: nextEvents, trace };
+            })
+          );
+        }
+      });
       setTurns((current) =>
-        current.map((turn) =>
-          turn.id === id
-            ? { ...turn, assistant: response.answer, trace: response.trace }
-            : turn
-        )
+        current.map((turn) => (turn.id === id ? { ...turn, streaming: false } : turn))
       );
     } catch (error) {
-      setTurns((current) =>
-        current.map((turn) =>
-          turn.id === id
-            ? {
-                ...turn,
-                error: error instanceof Error ? error.message : "请求失败"
-              }
-            : turn
-        )
-      );
+      try {
+        const response = await sendMessage(message, history, maxSteps);
+        setTurns((current) =>
+          current.map((turn) =>
+            turn.id === id
+              ? { ...turn, assistant: response.answer, trace: response.trace, streaming: false }
+              : turn
+          )
+        );
+      } catch (fallbackError) {
+        setTurns((current) =>
+          current.map((turn) =>
+            turn.id === id
+              ? {
+                  ...turn,
+                  streaming: false,
+                  error:
+                    fallbackError instanceof Error
+                      ? fallbackError.message
+                      : error instanceof Error
+                        ? error.message
+                        : "请求失败"
+                }
+              : turn
+          )
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -376,8 +416,11 @@ export function App() {
                 <div>
                   <span className="message-label">User</span>
                   <p>{turn.user}</p>
+                  <FileReferenceCards message={turn.user} />
                 </div>
               </div>
+
+              <TodoCards events={turn.events ?? []} />
 
               {turn.error && (
                 <div className="message error-message">
@@ -399,9 +442,13 @@ export function App() {
                   <div>
                     <span className="message-label">ABC Agent</span>
                     <p>{turn.assistant}</p>
+                    <ToolCards trace={turn.trace} events={turn.events} />
+                    <ArtifactCards artifacts={extractArtifacts(turn.trace)} />
                   </div>
                 </div>
               )}
+
+              <RunTimeline trace={turn.trace} streaming={turn.streaming} />
 
               {turn.trace && turn.trace.length > 0 && (
                 <div className="run-summary">

@@ -408,6 +408,131 @@ input[type="range"] {
   overflow-wrap: anywhere;
 }
 
+.card-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.agent-card,
+.todo-card,
+.timeline-card {
+  border: 1px solid #dbe1e3;
+  border-radius: 8px;
+  background: #fff;
+  color: #1b2529;
+  padding: 12px;
+}
+
+.user-message .agent-card {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.agent-card {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.card-icon,
+.artifact-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #e7f0ff;
+  color: #1b4c8f;
+}
+
+.card-icon.tool {
+  background: #fff4d6;
+  color: #765110;
+}
+
+.card-kicker {
+  display: block;
+  color: #607076;
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.user-message .card-kicker,
+.user-message .agent-card p,
+.user-message .agent-card small {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.agent-card strong,
+.artifact-card strong {
+  display: block;
+}
+
+.agent-card p,
+.artifact-card p {
+  margin: 2px 0 0;
+  color: #657276;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.todo-card,
+.timeline-card {
+  display: grid;
+  gap: 8px;
+  width: min(840px, 100%);
+}
+
+.todo-head,
+.timeline-head,
+.todo-row,
+.timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.todo-head,
+.timeline-head {
+  color: #263339;
+}
+
+.todo-row,
+.timeline-row {
+  min-height: 28px;
+  color: #4d5d63;
+  font-size: 13px;
+}
+
+.timeline-row.active svg {
+  animation: spin 1s linear infinite;
+}
+
+.artifact-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.artifact-list.compact {
+  margin-top: 10px;
+}
+
+.artifact-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 18px;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #dbe1e3;
+  border-radius: 8px;
+  background: #f8faf9;
+  padding: 9px;
+}
+
 .message-label {
   display: block;
   color: inherit;

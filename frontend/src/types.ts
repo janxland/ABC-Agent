@@ -37,6 +37,8 @@ export interface ConversationTurn {
   user: string;
   assistant?: string;
   trace?: AgentTraceStep[];
+  events?: AgentStreamEvent[];
+  streaming?: boolean;
   error?: string;
 }
 
@@ -45,4 +47,9 @@ export interface UploadResponse {
   path: string;
   size_bytes: number;
   preview: string;
+}
+
+export interface AgentStreamEvent {
+  type: string;
+  [key: string]: unknown;
 }

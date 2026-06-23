@@ -1,7 +1,7 @@
 # ABC-Agent
 
-ABC-Agent is a Python ReAct agent powered by SiliconFlow, with local Skill loading
-and a React console for interactive use.
+ABC-Agent is a Python ReAct agent powered by SiliconFlow, LangGraph orchestration,
+local Skill loading, file-first tool inputs, and a React console for interactive use.
 
 ## Backend Setup
 
@@ -44,8 +44,21 @@ PYTHONPATH=src python -m abc_agent --react "列出当前可用 skills"
 
 ## Architecture
 
-- `abc_agent.react_agent`: ReAct loop with JSON decisions and trace records.
+- `abc_agent.langgraph_agent`: LangGraph ReAct loop with TODO events, tool execution, and OpenAI-style SSE chunks.
+- `abc_agent.react_agent`: compatibility wrapper around the LangGraph runtime.
 - `abc_agent.tools`: tool registry and skill-backed tool execution.
 - `abc_agent.skills`: discovers local `SKILL.md` files from `ABC_SKILLS_DIR`.
-- `abc_agent.api`: FastAPI backend for chat, health, and skills.
-- `frontend`: Vite + React + TypeScript console.
+- `abc_agent.api`: FastAPI backend for chat, streaming chat, file upload, health, and skills.
+- `frontend`: Vite + React + TypeScript console with message cards, tool cards, file cards, artifacts, and run timeline.
+
+## Streaming
+
+`POST /api/chat/stream` returns Server-Sent Events using OpenAI-style `data: ...`
+chunks and terminates with:
+
+```text
+data: [DONE]
+```
+
+ABC Agent also includes `abc_agent_event` payloads for TODO, tool, artifact, and
+run lifecycle cards.
